@@ -1,9 +1,20 @@
-"use strict";
+'use strict';
 
-Object.defineProperty(exports, "__esModule", {
+Object.defineProperty(exports, '__esModule', {
   value: true
 });
-exports["default"] = mortgage;
+exports['default'] = mortgage;
+exports.amortize = amortize;
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
+
+function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) arr2[i] = arr[i]; return arr2; } else { return Array.from(arr); } }
+
+var _lodash = require('lodash');
+
+var _lodash2 = _interopRequireDefault(_lodash);
+
+// amortization table with equity calculation, factor in appreciation and PMI
 function round(amount) {
   return Math.round(amount * 100) / 100;
 }
@@ -36,4 +47,43 @@ function mortgage(amount, annual_rate, number_of_payments, payment_schedule) {
   return round(PV * (r / (1 - Math.pow(1 + r, -n))));
 }
 
-module.exports = exports["default"];
+function amortize(home_value, annual_rate, number_of_payments, payment_schedule, down_payment_percent) {
+  var pmi = arguments.length <= 5 || arguments[5] === undefined ? 0 : arguments[5];
+  var annual_appreciation = arguments.length <= 6 || arguments[6] === undefined ? 0 : arguments[6];
+
+  var equity = home_value * down_payment_percent;
+  var debt = home_value - equity + pmi;
+  var payment = mortgage(debt, annual_rate, number_of_payments, payment_schedule);
+
+  var initial = {
+    home_value: home_value,
+    equity: equity,
+    debt: debt,
+    interest: 0,
+    principal: 0,
+    payment: payment
+  };
+
+  var effectiveMonthlyRate = effectiveRate(annual_rate, 2, payment_schedule);
+
+  return _lodash2['default'].range(0, number_of_payments).reduce(function (table, n, i) {
+    var prevState = table[i];
+
+    var home_value = round(prevState.home_value * (1 + annual_appreciation / 12));
+    var interest = round(prevState.debt * effectiveMonthlyRate);
+    var principal = round(payment - interest);
+    var debt = round(prevState.debt - principal);
+    var equity = round(home_value - debt);
+
+    var nextState = {
+      home_value: home_value,
+      equity: equity,
+      debt: debt,
+      interest: interest,
+      principal: principal,
+      payment: payment
+    };
+
+    return [].concat(_toConsumableArray(table), [nextState]);
+  }, [initial]);
+}
